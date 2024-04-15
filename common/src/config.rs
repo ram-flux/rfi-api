@@ -15,7 +15,9 @@ pub struct Config {
 
 #[derive(serde::Deserialize, serde::Serialize, Debug, Clone)]
 pub struct Http {
-    pub port: u16,
+    pub device_port: u16,
+    pub elf_port: u16,
+    pub friend_port: u16,
 }
 
 impl Config {

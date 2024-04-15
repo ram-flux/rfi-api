@@ -2,10 +2,9 @@
 //  Copyright 2024 Ram Flux, LLC.
 //
 
-
 mod handler;
 
-//cargo run -p device
+//cargo run -p friend
 #[tokio::main]
 async fn main() {
     let args: common::config::Args = <common::config::Args as clap::Parser>::parse();
@@ -28,12 +27,11 @@ async fn main() {
     let state = models::ArcLockAppState(apps);
 
     let app = axum::Router::new()
-        .route("/v1/device", axum::routing::post(handler::init))
-        .route("/v1/device/binding", axum::routing::post(handler::binding))
+        .route("/v1/friend/apply", axum::routing::post(handler::init))
         .fallback(common::fun::handler_404)
         .layer(axum::Extension(state));
 
-    let localhost = format!("0.0.0.0:{}", config.http.device_port);
+    let localhost = format!("0.0.0.0:{}", config.http.friend_port);
     tracing::info!("[localhost:port] {}", localhost);
     let listener = tokio::net::TcpListener::bind(localhost.as_str())
         .await

@@ -1,4 +1,4 @@
-# Ram Flux: Secure and Private Instant Messaging with Rust
+## Ram Flux: Secure and Private Instant Messaging with Rust
 
 Ram Flux is an open-source, anonymous instant messaging project built using the Rust programming language. The project aims to provide users with a secure and private communication experience. Ram Flux is licensed under the GPLv3, encouraging community participation and contributions.
 

@@ -4,6 +4,6 @@
 
 [workspace]
 
-members = [ "common", "models", "services/device"]
+members = [ "common", "models", "services/device","services/elf","services/friend"]
 
 resolver = "2"
