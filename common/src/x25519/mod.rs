@@ -7,6 +7,7 @@
 pub mod server;
 pub mod x25519_chacha20poly1305;
 pub mod device;
+pub mod signature;
 
 
 

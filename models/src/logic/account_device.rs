@@ -2,7 +2,6 @@
 //  Copyright 2024 Ram Flux, LLC.
 //
 
-
 use chrono::{NaiveDateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
@@ -128,10 +127,31 @@ impl AccountDevice {
         Ok(result.rows_affected() > 0)
     }
 
-    pub async fn get_by_pubkey(
+    pub async fn update_ser_pri_pub(
         pool: &sqlx::PgPool,
         public_key: &str,
-    ) -> Result<AccountDevice, crate::Error> {
+        updated_at: &NaiveDateTime,
+        pubkey: &str,
+        prikey: &str,
+    ) -> Result<bool, crate::Error> {
+        let result = sqlx::query!(
+            r#"
+            UPDATE account_device SET pubkey=$1,prikey=$2,updated_at=$3 WHERE public_key=$4;
+            "#,
+            Some(pubkey),
+            Some(prikey),
+            Some(updated_at),
+            public_key,
+        )
+        .execute(pool)
+        .await?;
+        Ok(result.rows_affected() > 0)
+    }
+
+    pub async fn get_by_device_pubkey(
+        pool: &sqlx::PgPool,
+        public_key: &str,
+    ) -> Result<Option<AccountDevice>, crate::Error> {
         let account_device = sqlx::query_as!(
             AccountDevice,
             r#"
@@ -139,7 +159,7 @@ impl AccountDevice {
             "#,
             public_key
         )
-        .fetch_one(pool)
+        .fetch_optional(pool)
         .await?;
         Ok(account_device)
     }
@@ -191,8 +211,8 @@ impl AccountDevice {
     pub async fn delete_by_pubkey(
         pool: &sqlx::PgPool,
         public_key: &str,
-    ) -> Result<(), crate::Error> {
-        sqlx::query!(
+    ) -> Result<bool, crate::Error> {
+        let result = sqlx::query!(
             r#"
             DELETE FROM account_device WHERE public_key = $1;
             "#,
@@ -200,6 +220,6 @@ impl AccountDevice {
         )
         .execute(pool)
         .await?;
-        Ok(())
+        Ok(result.rows_affected() > 0)
     }
 }

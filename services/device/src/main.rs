@@ -2,7 +2,6 @@
 //  Copyright 2024 Ram Flux, LLC.
 //
 
-
 mod handler;
 
 //cargo run -p device
@@ -29,6 +28,8 @@ async fn main() {
 
     let app = axum::Router::new()
         .route("/v1/device", axum::routing::post(handler::init))
+        .route("/v1/device", axum::routing::put(handler::update))
+        .route("/v1/device", axum::routing::delete(handler::delete))
         .route("/v1/device/binding", axum::routing::post(handler::binding))
         .fallback(common::fun::handler_404)
         .layer(axum::Extension(state));

@@ -2,7 +2,6 @@
 //  Copyright 2024 Ram Flux, LLC.
 //
 
-
 mod parameter;
 
 use axum::{Extension, Json};
@@ -132,62 +131,208 @@ pub async fn binding(
 
     let parts: Vec<String> = payload.split('.').map(|part| part.to_string()).collect();
 
-    if parts.len() == 3 {
-        let data = parts[0].clone();
-        let osrng = parts[1].clone();
-        let pubkey = parts[2].clone();
-
-        // println!("pubkey: {:#?}", pubkey);
-        // println!("osrng: {:#?}", osrng);
-
-        let device =
-            models::AccountDevice::get_by_pubkey_osrng(db, pubkey.as_str(), osrng.as_str())
-                .await
-                .unwrap();
-        // println!("device: {:#?}", device);
-        // println!("payload: {:#?}", parts);
-        if let Some(device) = device {
-            let proof = device.proof.unwrap();
-            let account = device.account.unwrap();
-            let ser_pri = device.prikey.unwrap();
-            // println!("ser_pri: {:#?}", ser_pri);
-
-            let (_, dev_pub) = common::Device::generate_device_key(
-                proof.as_bytes(),
-                account.as_bytes(),
-                device.osrng.unwrap(),
-            )?;
-
-            let json_str = common::Encrypt::new(
-                ser_pri,
-                hex::encode(dev_pub.as_bytes()),
-                "unique nonce".to_string(),
-                data,
-            )
-            .decrypt()
-            .unwrap();
-            let device =
-                serde_json::from_str::<parameter::DeviceBinding>(json_str.as_str()).unwrap();
-
-            if device.device_pubkey.is_some() {
-                let device_pubkey = device.device_pubkey.unwrap();
-                let binding_update = models::AccountDevice::binding_update(
-                    db,
-                    &device_pubkey,
-                    &models::fun::get_current_date(),
-                    &proof,
-                    &account,
-                )
-                .await
-                .unwrap();
-                println!("binding_update: {:#?}", binding_update);
-                return Ok("binding".to_string().into());
-            }
-
-            return Err(common::ApiError::Msg("data err".to_string()));
-        }
-    } else {
+    if parts.len() != 3 {
         return Err(common::ApiError::Msg("payload err".to_string()));
+    }
+
+    let data = parts[0].clone();
+    let osrng = parts[1].clone();
+    let pubkey = parts[2].clone();
+
+    let device = models::AccountDevice::get_by_pubkey_osrng(db, pubkey.as_str(), osrng.as_str())
+        .await
+        .unwrap();
+
+    if let Some(device) = device {
+        let proof = device.proof.unwrap();
+        let account = device.account.unwrap();
+        let ser_pri = device.prikey.unwrap();
+
+        let (_, dev_pub) = common::x25519Device::generate_device_key(
+            proof.as_bytes(),
+            account.as_bytes(),
+            device.osrng.unwrap(),
+        )?;
+
+        let json_str = common::Encrypt::new(
+            ser_pri,
+            hex::encode(dev_pub.as_bytes()),
+            "unique nonce".to_string(),
+            data,
+        )
+        .decrypt()
+        .unwrap();
+        let device = serde_json::from_str::<parameter::DeviceBinding>(json_str.as_str()).unwrap();
+
+        if device.device_pubkey.is_some() {
+            let device_pubkey = device.device_pubkey.unwrap();
+            let binding_update = models::AccountDevice::binding_update(
+                db,
+                &device_pubkey,
+                &models::fun::get_current_date(),
+                &proof,
+                &account,
+            )
+            .await
+            .unwrap();
+            println!("binding_update: {:#?}", binding_update);
+            return Ok("OK".to_string().into());
+        }
+
+        return Err(common::ApiError::Msg("data err".to_string()));
+    }
+    return Err(common::ApiError::Msg("data err".to_string()));
+}
+
+pub async fn update(
+    Extension(app): Extension<models::ArcLockAppState>,
+    WithRejection(Json(from), _): WithRejection<Json<parameter::DeviceReq>, common::ApiError>,
+) -> Result<common::Response<String>, common::ApiError> {
+    let app = app.read().await;
+    let db = &app.db;
+    // println!("from: {:#?}", from);
+    let payload = from.data;
+    let signature = from.signature;
+
+    if payload.is_empty() && payload.len() == 0 {
+        return Err(common::ApiError::Msg("payload is empty".to_string()));
+    }
+
+    let parts: Vec<String> = payload.split('.').map(|part| part.to_string()).collect();
+
+    if parts.len() != 2 {
+        return Err(common::ApiError::Msg("payload err".to_string()));
+    }
+
+    let data = parts[0].clone();
+    let device_pubkey = parts[1].clone();
+
+    let device = models::AccountDevice::get_by_device_pubkey(db, device_pubkey.clone().as_str())
+        .await
+        .unwrap();
+
+    if let Some(device) = device {
+        // println!("device: {:#?}", device);
+
+        let proof = device.proof.unwrap();
+        let ser_pri = device.prikey.unwrap();
+
+        // println!("serpubk:{}", device.pubkey.unwrap());
+
+        let sig = common::signature::Signature::new(ser_pri.clone(), device_pubkey.clone())
+            .verify(data.as_str(), signature.as_str())?;
+        // println!("sig is: {:#?}", sig);
+
+        if !sig {
+            return Err(common::ApiError::Msg("signature err".to_string()));
+        }
+
+        let iproof = common::Encrypt::new(
+            ser_pri,
+            device_pubkey.clone(),
+            "unique nonce".to_string(),
+            data,
+        )
+        .decrypt()
+        .unwrap();
+
+        if iproof == proof {
+            let account_pubkey_hex = device.account.unwrap();
+            let account_pubkey = common::secp256k::from_pubkey_hex(account_pubkey_hex.as_str())
+                .map_err(|e| {
+                    common::ApiError::InternalServerError(format!("Failed to parse pubkey: {}", e))
+                })
+                .unwrap();
+
+            let (server_prikey, server_pubkey) =
+                common::server_generate(proof.as_bytes(), &account_pubkey.serialize()).unwrap();
+
+            let bl = models::AccountDevice::update_ser_pri_pub(
+                db,
+                device_pubkey.as_str(),
+                &models::fun::get_current_date(),
+                server_pubkey.clone().as_str(),
+                server_prikey.as_str(),
+            )
+            .await
+            .unwrap();
+
+            if bl {
+                return Ok(server_pubkey.into());
+            } else {
+                return Err(common::ApiError::Msg("db err".to_string()));
+            }
+        } else {
+            return Err(common::ApiError::Msg("proof err".to_string()));
+        }
+    }
+    return Err(common::ApiError::Msg("data err".to_string()));
+}
+
+pub async fn delete(
+    Extension(app): Extension<models::ArcLockAppState>,
+    WithRejection(Json(from), _): WithRejection<Json<parameter::DeviceReq>, common::ApiError>,
+) -> Result<common::Response<String>, common::ApiError> {
+    let app = app.read().await;
+    let db = &app.db;
+    println!("from: {:#?}", from);
+    let payload = from.data;
+    let signature = from.signature;
+
+    if payload.is_empty() && payload.len() == 0 {
+        return Err(common::ApiError::Msg("payload is empty".to_string()));
+    }
+
+    let parts: Vec<String> = payload.split('.').map(|part| part.to_string()).collect();
+
+    if parts.len() != 2 {
+        return Err(common::ApiError::Msg("payload err".to_string()));
+    }
+
+    let data = parts[0].clone();
+    let device_pubkey = parts[1].clone();
+
+    let device = models::AccountDevice::get_by_device_pubkey(db, device_pubkey.clone().as_str())
+        .await
+        .unwrap();
+
+    if let Some(device) = device {
+        // println!("device: {:#?}", device);
+
+        let proof = device.proof.unwrap();
+        let ser_pri = device.prikey.unwrap();
+
+        println!("serpubk:{}", device.pubkey.unwrap());
+
+        let sig = common::signature::Signature::new(ser_pri.clone(), device_pubkey.clone())
+            .verify(data.as_str(), signature.as_str())?;
+        println!("sig is: {:#?}", sig);
+
+        if !sig {
+            return Err(common::ApiError::Msg("signature err".to_string()));
+        }
+
+        let iproof = common::Encrypt::new(
+            ser_pri,
+            device_pubkey.clone(),
+            "unique nonce".to_string(),
+            data,
+        )
+        .decrypt()
+        .unwrap();
+
+        if iproof == proof {
+            let bl = models::AccountDevice::delete_by_pubkey(db, device_pubkey.as_str())
+                .await
+                .unwrap();
+            if bl {
+                return Ok("OK".to_string().into());
+            } else {
+                return Err(common::ApiError::Msg("db err".to_string()));
+            }
+        } else {
+            return Err(common::ApiError::Msg("proof err".to_string()));
+        }
     }
     return Err(common::ApiError::Msg("data err".to_string()));
 }

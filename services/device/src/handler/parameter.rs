@@ -19,9 +19,14 @@ pub struct DeviceRes {
     // pub signature: String,
 }
 
-
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceBinding {
     pub device_pubkey: Option<String>,
+}
+
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeviceReq {
+    pub data: String,
+    pub signature: String,
 }

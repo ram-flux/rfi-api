@@ -2,12 +2,12 @@
 //  Copyright 2024 Ram Flux, LLC.
 //
 
-
 #[warn(dead_code)]
 mod x25519;
+
 pub use x25519::{
-    device::Device, pubkey_from_hex, server::server_generate, server::server_osrng, verify_keys,
-    x25519_chacha20poly1305::Encrypt,
+    device::Device as x25519Device, pubkey_from_hex, server::server_generate, server::server_osrng, verify_keys,
+    x25519_chacha20poly1305::Encrypt,signature,
 };
 
 mod http;
