@@ -1,0 +1,9 @@
+#
+# Copyright 2024 Ram Flux, LLC.
+#
+
+[workspace]
+
+members = [ "common", "models", "services/device"]
+
+resolver = "2"

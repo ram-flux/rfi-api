@@ -1,0 +1,9 @@
+/target
+/.vscode
+/Cargo.lock
+/.DS_Store
+*.db
+*.db-wal
+*.db-shm
+.env
+config.toml

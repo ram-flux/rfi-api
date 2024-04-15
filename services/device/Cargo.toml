@@ -1,0 +1,61 @@
+[package]
+name = "device"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+common = { path = "../../common" }
+models = { path = "../../models" }
+tracing = "0.1"
+
+tokio = { version = "1", features = ["full"] }
+axum = { version = "0.7.0", features = ["macros", "multipart"] }
+axum-extra = { version = "0.9", features = ["typed-header"] }
+axum-client-ip = "0.5.0"
+tower = "0.4.13"
+
+
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+hex = { version = "0.4", features = ["serde"] }
+
+
+# bellman = "0.14.0"
+# bls12_381 = "0.8.0"
+# ff = "0.13.0"
+# rand = "0.8.5"
+
+[profile.dev]
+codegen-units = 4
+debug = true
+debug-assertions = true
+incremental = true
+lto = false
+opt-level = 0
+overflow-checks = false
+panic = 'unwind'
+rpath = false
+
+[profile.release]
+codegen-units = 1
+debug = false
+debug-assertions = false
+incremental = false
+lto = "thin"
+opt-level = 3
+overflow-checks = false
+panic = 'unwind'
+rpath = false
+
+[profile.test]
+codegen-units = 16
+debug = true
+debug-assertions = true
+incremental = true
+lto = false
+opt-level = 0
+overflow-checks = true
+rpath = false
+
